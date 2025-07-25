@@ -34,15 +34,6 @@ The Django server:
 ## 🛠 Technologies
 
 - **Backend**: Django, GeoDjango  
-- **Frontend (web)**: Leaflet.js or OpenLayers (if used)  
+- **Frontend (web)**: Leaflet.js 
 - **Mobile App**: Android Studio (Java)  
 - **GIS Tools**: GDAL, GeoJSON, Shapefile handling  
-- **Database**: PostgreSQL + PostGIS (recommended for spatial queries)
-
-## 🚀 How to Run
-
-### Django Backend:
-1. Clone the repo and navigate to the Django folder
-2. Create virtual environment and install requirements:
-   ```bash
-   pip install -r requirements.txt
