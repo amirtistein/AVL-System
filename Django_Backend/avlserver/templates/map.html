@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+{% load static %}
+<html>
+<head>
+    <title>AVL System Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}"/>
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #tocPanel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background-color: #ffffff;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            width: 250px;
+            border-left: 4px solid #0078d4;
+        }
+        .tocLabel {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+            display: block;
+        }
+        .tocSelect {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            background-color: #f9f9f9;
+            transition: border-color 0.3s;
+        }
+        .tocSelect:focus {
+            border-color: #0078d4;
+            outline: none;
+        }
+        .tocButton {
+            padding: 8px 15px;
+            margin-right: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+        .tocButton:active {
+            transform: scale(0.95);
+        }
+        .tocButton.start {
+            background-color: #28a745;
+            color: white;
+        }
+        .tocButton.start:hover {
+            background-color: #218838;
+        }
+        .tocButton.stop {
+            background-color: #dc3545;
+            color: white;
+        }
+        .tocButton.stop:hover {
+            background-color: #c82333;
+        }
+        #downloadSection {
+            margin-top: 15px;
+            display: none; /* Hidden by default */
+        }
+        .downloadButton {
+            display: block;
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            background-color: #0078d4;
+            color: white;
+            text-align: center;
+            border-radius: 5px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+        .downloadButton:hover {
+            background-color: #005a9e;
+        }
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+        #boundaryStatus {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+            transition: opacity 0.3s;
+        }
+        #boundaryStatus.error {
+            background-color: rgba(255, 0, 0, 0.1);
+            color: #d32f2f;
+        }
+        #speedBarContainer {
+            position: absolute;
+            bottom: 80px;
+            left: 20px;
+            z-index: 1000;
+            width: 250px;
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 10px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+            border: 2px solid #333;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #speedBarLabel {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+            text-align: center;
+            text-transform: uppercase;
+        }
+        #speedBar {
+            height: 30px;
+            background: linear-gradient(to right, #28a745, #ffcc00 50%, #dc3545);
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+            border: 1px solid #666;
+        }
+        #speedBarTicks {
+            position: absolute;
+            top: -10px;
+            left: 0;
+            width: 100%;
+            height: 30px;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 5px;
+        }
+        .tick {
+            width: 1px;
+            height: 8px;
+            background-color: #333;
+            position: absolute;
+            top: 30px;
+        }
+        .tick-label {
+            position: absolute;
+            top: 38px;
+            font-size: 12px;
+            color: #333;
+        }
+        #speedBarPointer {
+            position: absolute;
+            top: -10px;
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 12px solid #ff4500;
+            transition: left 0.3s ease-in-out;
+            transform-origin: bottom center;
+        }
+        #speedBarFill {
+            height: 100%;
+            background-color: transparent;
+            border-radius: 15px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            transition: width 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <div id="tocPanel">
+        <label for="deviceSelect" class="tocLabel">Select Device:</label>
+        <select id="deviceSelect" class="tocSelect" onchange="updateMapForSelectedDevice()">
+            <option value="">-- Select a Device --</option>
+        </select>
+        <label for="baseMapSelect" class="tocLabel">Select Base Map:</label>
+        <select id="baseMapSelect" class="tocSelect" onchange="updateBaseMap()">
+            <option value="osm">OpenStreetMap</option>
+            <option value="satellite">Satellite</option>
+        </select>
+        <div style="margin-top: 15px; text-align: center;">
+            <button id="startButton" class="tocButton start" onclick="toggleRecording('start')">Start</button>
+            <button id="stopButton" class="tocButton stop" onclick="toggleRecording('stop')">Stop</button>
+        </div>
+        <div id="downloadSection">
+            <label class="tocLabel">Download Shapefile:</label>
+            <a id="downloadShp" class="downloadButton" href="#" style="display: none;">Download .shp</a>
+            <a id="downloadShx" class="downloadButton" href="#" style="display: none;">Download .shx</a>
+            <a id="downloadDbf" class="downloadButton" href="#" style="display: none;">Download .dbf</a>
+            <a id="downloadPrj" class="downloadButton" href="#" style="display: none;">Download .prj</a>
+        </div>
+    </div>
+    <div id="map"></div>
+    <div id="boundaryStatus">Checking boundary status...</div>
+    <div id="speedBarContainer">
+        <div id="speedBarLabel">Speed: N/A</div>
+        <div id="speedBar">
+            <div id="speedBarTicks">
+                <div class="tick" style="left: 0%;"><span class="tick-label">0</span></div>
+                <div class="tick" style="left: 20%;"><span class="tick-label">20</span></div>
+                <div class="tick" style="left: 40%;"><span class="tick-label">40</span></div>
+                <div class="tick" style="left: 60%;"><span class="tick-label">60</span></div>
+                <div class="tick" style="left: 80%;"><span class="tick-label">80</span></div>
+                <div class="tick" style="left: 100%;"><span class="tick-label">100+</span></div>
+            </div>
+            <div id="speedBarPointer"></div>
+            <div id="speedBarFill"></div>
+        </div>
+    </div>
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="{% static 'js/map.js' %}"></script>
+    <script>
+        let lastKnownMarker = null; // Track the last marker to prevent duplicates
+
+        document.addEventListener('DOMContentLoaded', function() {
+            map.setView([35.7246, 51.3876], 18);
+
+            const boundaryCoords = [
+                [35.724734, 51.387855],
+                [35.724728, 51.387518],
+                [35.724500, 51.387501],
+                [35.724508, 51.387830]
+            ];
+
+            let boundaryPolygon = L.polygon(boundaryCoords, {
+                color: 'blue',
+                fillColor: '#blue',
+                fillOpacity: 0.2
+            }).addTo(map);
+
+            const boundaryStatusDiv = document.getElementById('boundaryStatus');
+
+            function isPointInPolygon(point, polygon) {
+                let inside = false;
+                for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                    const xi = polygon[i][1], yi = polygon[i][0];
+                    const xj = polygon[j][1], yj = polygon[j][0];
+                    const intersect = ((yi > point[0]) !== (yj > point[0])) &&
+                        (point[1] < (xj - xi) * (point[0] - yi) / (yj - yi) + xi);
+                    if (intersect) inside = !inside;
+                }
+                return inside;
+            }
+
+            setInterval(updateMapForSelectedDevice, 5000);
+        });
+
+        function updateMapForSelectedDevice() {
+            const selectedDeviceId = document.getElementById('deviceSelect').value;
+            const speedBarLabel = document.getElementById('speedBarLabel');
+            const speedBarPointer = document.getElementById('speedBarPointer');
+            const speedBarFill = document.getElementById('speedBarFill');
+            const boundaryStatusDiv = document.getElementById('boundaryStatus');
+            const boundaryCoords = [
+                [35.724734, 51.387855],
+                [35.724728, 51.387518],
+                [35.724500, 51.387501],
+                [35.724508, 51.387830]
+            ];
+
+            function isPointInPolygon(point, polygon) {
+                let inside = false;
+                for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                    const xi = polygon[i][1], yi = polygon[i][0];
+                    const xj = polygon[j][1], yj = polygon[j][0];
+                    const intersect = ((yi > point[0]) !== (yj > point[0])) &&
+                        (point[1] < (xj - xi) * (point[0] - yi) / (yj - yi) + xi);
+                    if (intersect) inside = !inside;
+                }
+                return inside;
+            }
+
+            // Clear all markers and paths if no device is selected
+            if (!selectedDeviceId) {
+                Object.keys(markers).forEach(deviceId => {
+                    if (markers[deviceId]) {
+                        map.removeLayer(markers[deviceId]);
+                        console.log(`Removed marker for device: ${deviceId}`);
+                        delete markers[deviceId];
+                    }
+                });
+                Object.keys(paths).forEach(deviceId => {
+                    if (paths[deviceId]) {
+                        map.removeLayer(paths[deviceId]);
+                        console.log(`Removed path for device: ${deviceId}`);
+                        delete paths[deviceId];
+                    }
+                });
+                if (lastKnownMarker) {
+                    map.removeLayer(lastKnownMarker);
+                    lastKnownMarker = null;
+                    console.log("Removed last known marker");
+                }
+                markers = {};
+                paths = {};
+
+                speedBarLabel.textContent = 'Speed: N/A';
+                speedBarPointer.style.left = '-8px';
+                speedBarFill.style.width = '0%';
+                boundaryStatusDiv.textContent = 'No device selected';
+                boundaryStatusDiv.className = '';
+                console.log("No device selected, map cleared.");
+                return;
+            }
+
+            console.log("Updating map for selected device:", selectedDeviceId);
+
+            fetch('/api/locations/')
+                .then(response => response.json())
+                .then(data => {
+                    console.log("API /api/locations/ response:", data);
+                    // Filter for the selected device and take the latest entry (should be first due to backend sorting)
+                    const deviceEntries = data.filter(loc => loc.device_id === selectedDeviceId);
+                    const selectedDevice = deviceEntries[0]; // Latest entry due to sorting
+
+                    if (selectedDevice) {
+                        const latlng = [selectedDevice.latitude, selectedDevice.longitude];
+                        const popupContent = `
+                            <b>Device:</b> ${selectedDevice.model} (${selectedDevice.device_id})<br>
+                            <b>Battery:</b> ${selectedDevice.battery}%<br>
+                            <b>Lat:</b> ${selectedDevice.latitude}<br>
+                            <b>Lon:</b> ${selectedDevice.longitude}<br>
+                            <b>Last Updated:</b> ${selectedDevice.last_updated}
+                        `;
+
+                        // Clear all existing markers for this device
+                        if (markers[selectedDeviceId]) {
+                            map.removeLayer(markers[selectedDeviceId]);
+                            console.log(`Removed existing marker for device: ${selectedDeviceId}`);
+                            delete markers[selectedDeviceId];
+                        }
+                        if (lastKnownMarker) {
+                            map.removeLayer(lastKnownMarker);
+                            console.log("Removed last known marker");
+                            lastKnownMarker = null;
+                        }
+
+                        // Add new marker with the latest location
+                        lastKnownMarker = L.marker(latlng, {
+                            title: `${selectedDevice.model} (${selectedDevice.device_id}) - ${selectedDevice.battery}%`
+                        }).bindPopup(popupContent).addTo(map);
+                        markers[selectedDeviceId] = lastKnownMarker;
+                        console.log(`Added marker for device: ${selectedDeviceId} at ${latlng}, last updated: ${selectedDevice.last_updated}`);
+
+                        map.setView(latlng, 18);
+                        markers[selectedDeviceId].openPopup();
+
+                        // Check boundary status
+                        const devicePoint = [selectedDevice.latitude, selectedDevice.longitude];
+                        const inside = isPointInPolygon(devicePoint, boundaryCoords);
+                        boundaryStatusDiv.textContent = inside ? 'Inside Boundary' : 'Outside Boundary';
+                        boundaryStatusDiv.className = inside ? '' : 'error';
+                        if (!inside) {
+                            alert(`Warning: Device ${selectedDeviceId} is outside the boundary!`);
+                        }
+                    } else {
+                        console.warn(`Device ${selectedDeviceId} not found in location data.`);
+                        boundaryStatusDiv.textContent = 'Device not found';
+                        boundaryStatusDiv.className = 'error';
+                        // Clear markers if device is not found
+                        if (markers[selectedDeviceId]) {
+                            map.removeLayer(markers[selectedDeviceId]);
+                            delete markers[selectedDeviceId];
+                            console.log(`Removed marker for non-existent device: ${selectedDeviceId}`);
+                        }
+                        if (lastKnownMarker) {
+                            map.removeLayer(lastKnownMarker);
+                            lastKnownMarker = null;
+                            console.log("Removed last known marker");
+                        }
+                    }
+                })
+                .catch(error => console.error('Error fetching locations:', error));
+
+            fetch(`/api/path/${selectedDeviceId}/`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log(`API /api/path/${selectedDeviceId}/ response:`, data);
+                    const points = data.points;
+                    const speedKmh = data.speed_kmh;
+
+                    if (speedKmh !== null) {
+                        const maxSpeed = 120;
+                        const percentage = Math.min((speedKmh / maxSpeed) * 100, 100);
+                        const pointerPosition = (percentage / 100) * (250 - 16) - 8;
+                        speedBarLabel.textContent = `Speed: ${speedKmh} km/h`;
+                        speedBarPointer.style.left = `${pointerPosition}px`;
+                        speedBarFill.style.width = `${percentage}%`;
+                    } else {
+                        speedBarLabel.textContent = 'Speed: Not available';
+                        speedBarPointer.style.left = '-8px';
+                        speedBarFill.style.width = '0%';
+                    }
+
+                    if (points.length > 1) {
+                        const latlngs = points.map(point => [point.latitude, point.longitude]);
+                        if (paths[selectedDeviceId]) {
+                            paths[selectedDeviceId].setLatLngs(latlngs);
+                            console.log(`Updated path for device: ${selectedDeviceId}`);
+                        } else {
+                            Object.keys(paths).forEach(deviceId => {
+                                if (deviceId !== selectedDeviceId && paths[deviceId]) {
+                                    map.removeLayer(paths[deviceId]);
+                                    console.log(`Removed path for device: ${deviceId}`);
+                                    delete paths[deviceId];
+                                }
+                            });
+                            paths[selectedDeviceId] = L.polyline(latlngs, { color: 'blue' }).addTo(map);
+                            console.log(`Added path for device: ${selectedDeviceId}`);
+                        }
+                        map.fitBounds(L.latLngBounds(latlngs), { padding: [50, 50] });
+                    }
+                })
+                .catch(error => console.error(`Error fetching path for ${selectedDeviceId}:`, error));
+        }
+    </script>
+</body>
+</html>
